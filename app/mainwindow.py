@@ -1,19 +1,13 @@
 # This Python file uses the following encoding: utf-8
-import itertools
 import json
-from typing import List, NamedTuple
+from typing import List
 
 from PySide6.QtNetwork import QNetworkAccessManager, QNetworkReply
 from PySide6.QtWidgets import QMainWindow, QTableWidgetItem
 
 from app.ui_mainwindow import Ui_MainWindow
-from services.geo_service import GeoService, Point
+from services.geo_service import GeoService, Point, SavedPointType, TSPMap
 from utils.alerts import error_alert, alert
-
-
-class SavedPointType(NamedTuple):
-    point: Point
-    address: str
 
 
 class MainWindow(QMainWindow):
@@ -39,6 +33,7 @@ class MainWindow(QMainWindow):
     def on_point_find_end(self):
         self.ui.point_append_btn.setDisabled(False)
         self.ui.point_name_edit.setDisabled(False)
+        self.ui.point_name_edit.setText("")
 
     def create_point(self):
         self.on_point_find_start()
@@ -110,20 +105,11 @@ class MainWindow(QMainWindow):
                 )
             ]))
             return
-        permutations = list(itertools.permutations(self._points[1:]))
-        distances = {}
-        for idx, permutation in enumerate(permutations):
-            distances[idx] = self.geo_service.points_distance(first_point=self._points[0].point,
-                                                              second_point=permutation[0].point)
-            for i in range(len(permutation) - 1):
-                distances[idx] += self.geo_service.points_distance(first_point=permutation[i].point,
-                                                                   second_point=permutation[i + 1].point)
-            distances[idx] += self.geo_service.points_distance(first_point=self._points[0].point,
-                                                               second_point=permutation[-1].point)
-        min_key = min(distances, key=distances.get)
+        map = TSPMap(nodes=self._points)
+        map.run()
         alert(widget=self, title="Маршрут", message="\n".join([
             "Оптимальный маршрут " + " - ".join([self._points[0].address,
-                                                 *[p.address for p in permutations[min_key]],
+                                                 *[self._points[i].address for i in map.optimal_path],
                                                  self._points[0].address]),
-            f"Протяженность маршрута {distances[min_key]}"
+            f"Протяженность маршрута {map.optimal_length}"
         ]))
